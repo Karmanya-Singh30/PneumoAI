@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PneumoAI — Lung Sound Classification</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+/* ─── TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:       #090d12;
+  --sidebar:  #0d1118;
+  --surface:  #111620;
+  --surface2: #161d2a;
+  --border:   rgba(255,255,255,0.07);
+  --border-b: rgba(255,255,255,0.13);
+  --accent:   #00d4aa;
+  --accent2:  #0099ff;
+  --accent3:  #ff6b6b;
+  --warn:     #f5a623;
+  --text:     #e8edf5;
+  --dim:      #7a8899;
+  --dimmer:   #3d4a5a;
+  --sidebar-w: 220px;
+  --topbar-h:  60px;
+}
+
+/* ─── RESET ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-b); border-radius: 3px; }
+
+/* ─── BG GRID ────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,212,170,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,170,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* Orbs */
+.orb { position: fixed; border-radius: 50%; filter: blur(110px); pointer-events: none; z-index: 0; }
+.orb-1 { width:500px;height:500px;background:rgba(0,212,170,0.055);top:-150px;left:-60px; animation: fo 14s ease-in-out infinite; }
+.orb-2 { width:420px;height:420px;background:rgba(0,153,255,0.045);bottom:-150px;right:-60px; animation: fo 14s ease-in-out infinite; animation-delay:-7s; }
+@keyframes fo { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
+
+/* ─── LAYOUT SHELL ───────────────────────────────────── */
+.shell {
+  position: relative; z-index: 1;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ─── SIDEBAR ────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 50;
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+}
+
+.sidebar-logo {
+  display: flex; align-items: center; gap: 11px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-icon {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.logo-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px; font-weight: 800; letter-spacing: -0.5px;
+}
+.logo-text span { color: var(--accent); }
+
+.sidebar-section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--dimmer);
+  padding: 20px 20px 8px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 20px;
+  margin: 1px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.18s;
+  color: var(--dim);
+  font-size: 13.5px; font-weight: 500;
+  border: none; background: transparent; width: calc(100% - 20px);
+  text-align: left;
+  position: relative;
+}
+.nav-item .ni-icon {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: rgba(255,255,255,0.04);
+  transition: background 0.18s;
+  flex-shrink: 0;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.nav-item:hover .ni-icon { background: rgba(255,255,255,0.07); }
+.nav-item.active {
+  color: var(--accent);
+  background: rgba(0,212,170,0.08);
+}
+.nav-item.active .ni-icon {
+  background: rgba(0,212,170,0.15);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 20px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+.status-dot {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--accent);
+}
+.status-dot::before {
+  content: ''; width: 6px; height: 6px;
+  background: var(--accent); border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+
+/* ─── MAIN AREA ──────────────────────────────────────── */
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ─── TOP BAR ────────────────────────────────────────── */
+.topbar {
+  height: var(--topbar-h);
+  background: rgba(9,13,18,0.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+  position: sticky; top: 0; z-index: 40;
+}
+.topbar-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px; font-weight: 700; letter-spacing: -0.3px;
+}
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.5px;
+  color: var(--dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  padding: 5px 12px; border-radius: 100px;
+}
+.hamburger {
+  display: none;
+  width: 34px; height: 34px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+}
+.hamburger span {
+  width: 16px; height: 1.5px;
+  background: var(--text); border-radius: 2px;
+  transition: all 0.2s;
+}
+
+/* ─── TAB PANELS ─────────────────────────────────────── */
+.tab-panel { display: none; padding: 32px; animation: panelIn 0.4s cubic-bezier(0.22,1,0.36,1) both; }
+.tab-panel.active { display: block; }
+@keyframes panelIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* ─── SHARED COMPONENTS ──────────────────────────────── */
+.panel-header { margin-bottom: 28px; }
+.panel-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px; font-weight: 800; letter-spacing: -1px;
+  margin-bottom: 5px;
+}
+.panel-title span { color: var(--accent); }
+.panel-sub { font-size: 13px; color: var(--dim); }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  border-color: var(--border-b);
+}
+
+/* Stat grid */
+.stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 20px;
+  position: relative; overflow: hidden;
+  transition: all 0.2s;
+}
+.stat-card:hover { border-color: var(--border-b); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
+.stat-card::after {
+  content:''; position:absolute; top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  opacity:0; transition:opacity 0.2s;
+}
+.stat-card:hover::after { opacity:1; }
+.stat-label {
+  font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.2px;
+  text-transform:uppercase; color:var(--dimmer); margin-bottom:8px;
+}
+.stat-value {
+  font-family:'Syne',sans-serif; font-size:30px; font-weight:700; letter-spacing:-1.5px;
+}
+.stat-value small { font-size:16px; letter-spacing:0; color:var(--dim); }
+.stat-note { font-size:11px; color:var(--dim); margin-top:3px; }
+
+/* Feature rows */
+.feat-row { display:flex; align-items:center; gap:9px; font-size:13px; color:var(--dim); }
+.feat-dot { width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0; }
+
+/* Buttons */
+.btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:12px 22px; border-radius:9px; border:none;
+  font-size:13.5px; font-weight:600; cursor:pointer;
+  transition: all 0.2s; letter-spacing:0.1px;
+}
+.btn-primary { background:linear-gradient(135deg,var(--accent),#00b890); color:#090d12; }
+.btn-primary:hover { transform:translateY(-2px); box-shadow:0 10px 32px rgba(0,212,170,0.3); }
+.btn-primary:disabled { opacity:0.4; transform:none; cursor:not-allowed; box-shadow:none; }
+.btn-ghost {
+  background:transparent; color:var(--text);
+  border:1px solid var(--border-b);
+}
+.btn-ghost:hover { background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.25); }
+
+/* Mono tag */
+.mono-tag {
+  font-family:'DM Mono',monospace; font-size:10px; letter-spacing:0.5px;
+  padding:4px 11px; border-radius:100px;
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  color:var(--dim);
+}
+.mono-tag.green {
+  background:rgba(0,212,170,0.08); border-color:rgba(0,212,170,0.22); color:var(--accent);
+}
+.mono-tag.red {
+  background:rgba(255,107,107,0.08); border-color:rgba(255,107,107,0.22); color:var(--accent3);
+}
+
+/* ─── TAB: OVERVIEW ──────────────────────────────────── */
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  align-items: start;
+}
+
+.overview-text-card {
+  padding: 36px 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  position: relative; overflow: hidden;
+}
+.overview-text-card::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at 0% 0%, rgba(0,212,170,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+.ot-tag {
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1.3px;
+  text-transform:uppercase; color:var(--accent); margin-bottom:18px;
+}
+.ot-tag::before { content:''; width:16px;height:1px;background:var(--accent); }
+.ot-h1 {
+  font-family:'Syne',sans-serif; font-size:clamp(28px,3vw,42px);
+  font-weight:800; letter-spacing:-1.5px; line-height:1.1; margin-bottom:16px;
+}
+.ot-h1 span { background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.ot-p { font-size:14px; line-height:1.75; color:var(--dim); margin-bottom:26px; max-width:480px; }
+.ot-actions { display:flex; gap:12px; flex-wrap:wrap; }
+
+.lung-visual-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 20px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 18px;
+  position: relative; overflow: hidden;
+}
+.lung-visual-card::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at 50% 0%, rgba(0,212,170,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+.lung-svg { width:140px;height:140px;filter:drop-shadow(0 0 18px rgba(0,212,170,0.35)); animation:breathe 3s ease-in-out infinite; }
+@keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+#hero-wave { border-radius:8px; background:rgba(0,0,0,0.25); display:block; }
+.visual-chips { display:flex;gap:8px;flex-wrap:wrap;justify-content:center; }
+
+/* ─── TAB: CLASSIFY ──────────────────────────────────── */
+.classify-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.upload-zone {
+  background:var(--surface); border:2px dashed rgba(0,212,170,0.2);
+  border-radius:18px; padding:50px 30px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  cursor:pointer; text-align:center; position:relative; overflow:hidden;
+  transition:all 0.22s;
+}
+.upload-zone::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at 50% 100%, rgba(0,212,170,0.05), transparent 60%);
+  opacity:0; transition:opacity 0.22s;
+}
+.upload-zone:hover, .upload-zone.dragging {
+  border-color:rgba(0,212,170,0.55);
+  background:rgba(0,212,170,0.035);
+}
+.upload-zone:hover::before, .upload-zone.dragging::before { opacity:1; }
+.upload-icon {
+  width:58px;height:58px; background:rgba(0,212,170,0.1);
+  border:1px solid rgba(0,212,170,0.2); border-radius:14px;
+  display:flex;align-items:center;justify-content:center; font-size:24px;
+  transition:transform 0.2s;
+}
+.upload-zone:hover .upload-icon { transform:scale(1.07); }
+.upload-title { font-family:'Syne',sans-serif; font-size:17px;font-weight:700;letter-spacing:-0.3px; }
+.upload-sub { font-size:13px;color:var(--dim);line-height:1.6; }
+.fmt-row { display:flex;gap:6px;flex-wrap:wrap;justify-content:center; }
+.fmt-tag {
+  font-family:'DM Mono',monospace;font-size:10px;
+  padding:3px 9px; background:rgba(255,255,255,0.04);
+  border:1px solid var(--border); border-radius:5px; color:var(--dim);
+}
+#file-input { display:none; }
+
+.result-panel {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:18px; padding:28px;
+  display:flex; flex-direction:column; gap:20px;
+}
+.result-header { display:flex;align-items:center;justify-content:space-between; }
+.result-title { font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dimmer); }
+.classification-label {
+  font-family:'Syne',sans-serif;font-size:34px;font-weight:800;letter-spacing:-1.5px;color:var(--accent);
+  display:flex;align-items:center;gap:10px;
+}
+.classification-label.abnormal { color:var(--accent3); }
+.result-desc { font-size:13px;color:var(--dim);line-height:1.6; }
+
+.conf-block { display:flex;flex-direction:column;gap:7px; }
+.conf-row { display:flex;justify-content:space-between; font-family:'DM Mono',monospace;font-size:11px;color:var(--dim); }
+.conf-bar { height:5px;background:rgba(255,255,255,0.06);border-radius:100px;overflow:hidden; }
+.conf-fill { height:100%;border-radius:100px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 1.2s cubic-bezier(0.22,1,0.36,1); }
+.conf-fill.danger { background:linear-gradient(90deg,#ff6b6b,#ff4040); }
+
+/* ─── TAB: PIPELINE ──────────────────────────────────── */
+.pipeline-steps {
+  display:grid; grid-template-columns:repeat(6,1fr); gap:12px;
+  position:relative; margin-bottom:24px;
+}
+.pipeline-steps::before {
+  content:''; position:absolute; top:30px;
+  left:calc(8.33% + 12px); right:calc(8.33% + 12px); height:1px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+  opacity:0.25; z-index:0;
+}
+.pipe-step {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:13px; padding:18px 12px;
+  display:flex; flex-direction:column; align-items:center; gap:9px;
+  text-align:center; position:relative; z-index:1;
+  transition:all 0.2s; cursor:default;
+}
+.pipe-step:hover { border-color:rgba(0,212,170,0.3); transform:translateY(-4px); background:var(--surface2); }
+.pipe-num { font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;color:var(--dimmer); }
+.pipe-icon {
+  width:38px;height:38px; background:rgba(0,212,170,0.08);
+  border:1px solid rgba(0,212,170,0.15); border-radius:9px;
+  display:flex;align-items:center;justify-content:center; font-size:16px;
+}
+.pipe-name { font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:-0.2px;line-height:1.3; }
+
+.pipe-detail-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.pipe-detail-card { background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px; }
+.pdc-label { font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--dimmer);margin-bottom:12px; }
+.pdc-list { display:flex;flex-direction:column;gap:7px; }
+
+/* ─── TAB: RESEARCH ──────────────────────────────────── */
+.lit-wrap { background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden; }
+.lit-table { width:100%;border-collapse:collapse; }
+.lit-table th {
+  background:rgba(0,212,170,0.04); padding:12px 18px;
+  text-align:left; font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;
+  text-transform:uppercase; color:var(--dimmer); border-bottom:1px solid var(--border); font-weight:400;
+}
+.lit-table td {
+  padding:14px 18px; font-size:12.5px;color:var(--dim);
+  border-bottom:1px solid var(--border); vertical-align:top; line-height:1.5;
+}
+.lit-table tr:last-child td { border-bottom:none; }
+.lit-table tr:hover td { background:rgba(255,255,255,0.013); }
+.lit-table td:first-child { font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);white-space:nowrap; }
+.metric-pill {
+  display:inline-block; font-family:'DM Mono',monospace;font-size:10px;
+  padding:2px 9px; background:rgba(0,212,170,0.08);
+  border:1px solid rgba(0,212,170,0.2); border-radius:5px; color:var(--accent);
+}
+
+/* Mobile card view for lit table */
+.lit-cards { display:none; flex-direction:column; gap:12px; }
+.lit-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:18px; display:flex;flex-direction:column;gap:10px;
+}
+.lit-card-title { font-family:'DM Mono',monospace;font-size:11px;color:var(--accent); }
+.lit-card-body { font-size:12.5px;color:var(--dim);line-height:1.55; }
+
+/* ─── TAB: TEAM ──────────────────────────────────────── */
+.team-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.team-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:16px; padding:26px 18px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;
+  transition:all 0.2s;
+}
+.team-card:hover { border-color:var(--border-b);transform:translateY(-4px);box-shadow:0 18px 40px rgba(0,0,0,0.3); }
+.team-av {
+  width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#090d12;
+}
+.team-name { font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:-0.2px; }
+.team-id { font-family:'DM Mono',monospace;font-size:9px;color:var(--dimmer);letter-spacing:0.5px; }
+.team-role { font-size:11.5px;color:var(--dim);line-height:1.55;padding-top:10px;border-top:1px solid var(--border);width:100%; }
+
+.guide-bar {
+  margin-top:14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:18px 22px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+
+/* ─── OVERLAY (mobile sidebar) ───────────────────────── */
+.overlay {
+  display:none; position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:45;
+  backdrop-filter:blur(4px); opacity:0; transition:opacity 0.3s;
+}
+.overlay.show { opacity:1; }
+
+/* ─── MOBILE BOTTOM NAV ──────────────────────────────── */
+.bottom-nav {
+  display:none;
+  position:fixed; bottom:0;left:0;right:0;z-index:60;
+  background:rgba(13,17,24,0.97);
+  backdrop-filter:blur(16px);
+  border-top:1px solid var(--border);
+  padding:8px 0 max(8px, env(safe-area-inset-bottom));
+}
+.bottom-nav-inner { display:flex;justify-content:space-around; }
+.bn-item {
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:6px 14px; border-radius:10px; cursor:pointer;
+  background:none;border:none;color:var(--dimmer);
+  font-size:10px;font-family:'DM Sans',sans-serif;
+  transition:color 0.2s;
+  flex:1; max-width:80px;
+}
+.bn-item .bn-icon { font-size:18px;line-height:1; }
+.bn-item.active { color:var(--accent); }
+.bn-item span { letter-spacing:0.2px; }
+
+/* ─── RESPONSIVE ─────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .stat-grid { grid-template-columns:repeat(2,1fr); }
+  .team-grid { grid-template-columns:repeat(2,1fr); }
+  .pipeline-steps { grid-template-columns:repeat(3,1fr); }
+  .pipeline-steps::before { display:none; }
+  .hero-grid { grid-template-columns:1fr; }
+  .lung-visual-card { flex-direction:row; flex-wrap:wrap; justify-content:center; padding:24px; }
+}
+
+@media (max-width: 860px) {
+  .classify-grid { grid-template-columns:1fr; }
+  .pipe-detail-grid { grid-template-columns:1fr 1fr; }
+}
+
+@media (max-width: 768px) {
+  :root { --sidebar-w: 240px; }
+
+  /* Hide sidebar, show hamburger */
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 10px 0 60px rgba(0,0,0,0.5);
+  }
+  .overlay { display:block; pointer-events:none; }
+  .overlay.show { pointer-events:all; }
+  .hamburger { display:flex; }
+  .main { margin-left:0; }
+  .tab-panel { padding:20px 16px 90px; }
+  .topbar { padding:0 16px; }
+
+  /* Bottom nav instead of sidebar nav */
+  .bottom-nav { display:block; }
+
+  .stat-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+  .team-grid { grid-template-columns:repeat(2,1fr); }
+  .pipeline-steps { grid-template-columns:repeat(2,1fr); }
+
+  /* Literature: hide table, show cards */
+  .lit-wrap { display:none; }
+  .lit-cards { display:flex; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns:1fr 1fr; }
+  .team-grid { grid-template-columns:1fr 1fr; }
+  .pipeline-steps { grid-template-columns:repeat(2,1fr); }
+  .pipe-detail-grid { grid-template-columns:1fr; }
+  .ot-h1 { font-size:26px; }
+  .overview-text-card { padding:24px 20px; }
+  .ot-actions { flex-direction:column; }
+  .ot-actions .btn { justify-content:center; }
+  .guide-bar { flex-direction:column; align-items:flex-start; gap:6px; }
+  .topbar-tag { display:none; }
+  .result-panel { padding:20px; }
+  .classification-label { font-size:26px; }
+}
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══ SHELL ═══════════════════════════════════════════ -->
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🫁</div>
+      <div class="logo-text">Pneumo<span>AI</span></div>
+    </div>
+
+    <div class="sidebar-section-label">Navigation</div>
+
+    <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')">
+      <div class="ni-icon">🏠</div> Overview
+    </button>
+    <button class="nav-item" data-tab="classify" onclick="switchTab('classify')">
+      <div class="ni-icon">🎙️</div> Classify
+    </button>
+    <button class="nav-item" data-tab="pipeline" onclick="switchTab('pipeline')">
+      <div class="ni-icon">⚙️</div> Pipeline
+    </button>
+    <button class="nav-item" data-tab="research" onclick="switchTab('research')">
+      <div class="ni-icon">📄</div> Research
+    </button>
+    <button class="nav-item" data-tab="team" onclick="switchTab('team')">
+      <div class="ni-icon">👥</div> Team
+    </button>
+
+    <div class="sidebar-footer">
+      <div class="status-dot">RF Model · Ready</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--dimmer);margin-top:5px;">SIT Pune · Group 28</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="hamburger" id="hamburger" onclick="toggleSidebar()">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="topbar-title" id="topbar-title">Overview</div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-tag">ICBHI Dataset</div>
+        <div class="topbar-tag" style="color:var(--accent);border-color:rgba(0,212,170,0.2);background:rgba(0,212,170,0.06);">RF v1.0</div>
+      </div>
+    </header>
+
+    <!-- ── TAB: OVERVIEW ─────────────────────────────── -->
+    <div class="tab-panel active" id="tab-overview">
+
+      <!-- Stats row -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Target F1-Score</div>
+          <div class="stat-value">≥0.80<small> macro</small></div>
+          <div class="stat-note">Balanced class performance</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Sensitivity Target</div>
+          <div class="stat-value">85<small>%</small></div>
+          <div class="stat-note">Abnormal recall rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Specificity Target</div>
+          <div class="stat-value">85<small>%</small></div>
+          <div class="stat-note">Normal detection rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Dataset</div>
+          <div class="stat-value" style="font-size:22px;letter-spacing:-0.5px;">ICBHI</div>
+          <div class="stat-note">Public lung sound benchmark</div>
+        </div>
+      </div>
+
+      <!-- Hero grid -->
+      <div class="hero-grid">
+        <div class="overview-text-card">
+          <div class="ot-tag">AI-powered respiratory diagnostics</div>
+          <h1 class="ot-h1">Classify<br><span>Lung Sounds</span><br>with Precision</h1>
+          <p class="ot-p">An interpretable, lightweight AI system for automated respiratory health assessment — detecting normal and abnormal lung sounds from audio recordings in real time using Random Forest classification.</p>
+          <div class="ot-actions">
+            <button class="btn btn-primary" onclick="switchTab('classify')">
+              <span>↑</span> Upload Recording
+            </button>
+            <button class="btn btn-ghost" onclick="switchTab('pipeline')">
+              View Pipeline →
+            </button>
+          </div>
+        </div>
+
+        <div class="lung-visual-card">
+          <svg class="lung-svg" viewBox="0 0 160 160" fill="none">
+            <path d="M80 30 C80 30 65 28 55 35 C40 45 30 65 28 85 C24 115 32 145 50 148 C62 150 72 138 76 128 C78 122 79 110 80 100 C81 110 82 122 84 128 C88 138 98 150 110 148 C128 145 136 115 132 85 C130 65 120 45 105 35 C95 28 80 30 80 30Z" fill="url(#lg1)" opacity="0.9"/>
+            <rect x="76" y="15" width="8" height="20" rx="4" fill="url(#lg2)" opacity="0.7"/>
+            <path d="M80 35 C72 42 60 45 55 50" stroke="rgba(0,212,170,0.6)" stroke-width="3" stroke-linecap="round"/>
+            <path d="M80 35 C88 42 100 45 105 50" stroke="rgba(0,212,170,0.6)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="52" cy="90" r="18" fill="rgba(0,212,170,0.07)"/>
+            <circle cx="108" cy="90" r="18" fill="rgba(0,153,255,0.07)"/>
+            <defs>
+              <linearGradient id="lg1" x1="28" y1="30" x2="132" y2="150" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#00d4aa" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#0099ff" stop-opacity="0.3"/>
+              </linearGradient>
+              <linearGradient id="lg2" x1="80" y1="15" x2="80" y2="35" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#00d4aa"/>
+                <stop offset="100%" stop-color="#00d4aa" stop-opacity="0.2"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <canvas id="hero-wave" width="280" height="54"></canvas>
+          <div class="visual-chips">
+            <span class="mono-tag green">● Normal</span>
+            <span class="mono-tag">MFCC · RFC · SMOTE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: CLASSIFY ──────────────────────────────── -->
+    <div class="tab-panel" id="tab-classify">
+      <div class="panel-header">
+        <h2 class="panel-title">Upload & <span>Classify</span></h2>
+        <p class="panel-sub">Upload a lung sound recording and the AI model will classify it</p>
+      </div>
+      <div class="classify-grid">
+        <!-- Upload zone -->
+        <div class="upload-zone" id="upload-zone"
+             onclick="document.getElementById('file-input').click()"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)">
+          <input type="file" id="file-input" accept=".wav,.mp3,.flac,.ogg" onchange="handleFileSelect(event)">
+          <div class="upload-icon">🎙️</div>
+          <div class="upload-title">Drop lung sound recording</div>
+          <p class="upload-sub">Drag and drop your audio file here, or click to select from your device</p>
+          <div class="fmt-row">
+            <span class="fmt-tag">.WAV</span>
+            <span class="fmt-tag">.MP3</span>
+            <span class="fmt-tag">.FLAC</span>
+            <span class="fmt-tag">.OGG</span>
+          </div>
+          <div id="upload-filename" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);display:none;margin-top:4px;"></div>
+        </div>
+
+        <!-- Result panel -->
+        <div class="result-panel">
+          <div class="result-header">
+            <div class="result-title">Classification Result</div>
+            <div class="mono-tag" id="result-status">Awaiting input</div>
+          </div>
+          <div>
+            <div class="classification-label" id="result-label">— — —</div>
+            <div class="result-desc" id="result-desc">Upload a recording to begin classification</div>
+          </div>
+          <div class="conf-block">
+            <div class="conf-row"><span>Normal</span><span id="p-normal">—</span></div>
+            <div class="conf-bar"><div class="conf-fill" id="fill-normal" style="width:0%"></div></div>
+          </div>
+          <div class="conf-block">
+            <div class="conf-row"><span>Abnormal (Wheeze / Crackle)</span><span id="p-abnormal">—</span></div>
+            <div class="conf-bar"><div class="conf-fill danger" id="fill-abnormal" style="width:0%"></div></div>
+          </div>
+          <div id="feature-list" style="display:none;flex-direction:column;gap:7px;">
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--dimmer);text-transform:uppercase;margin-bottom:2px;">Extracted Features</div>
+            <div class="feat-row"><div class="feat-dot"></div>MFCC Coefficients (×13) extracted</div>
+            <div class="feat-row"><div class="feat-dot"></div>Spectral Rolloff · Centroid · Contrast</div>
+            <div class="feat-row"><div class="feat-dot" style="background:var(--accent2)"></div>RMS Energy · Zero Crossing Rate</div>
+            <div class="feat-row"><div class="feat-dot" style="background:var(--warn)"></div>SMOTE applied · Class balanced</div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;" id="classify-btn" onclick="runClassification()" disabled>
+            <span id="btn-icon">⚡</span> <span id="btn-text">Classify Sound</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: PIPELINE ──────────────────────────────── -->
+    <div class="tab-panel" id="tab-pipeline">
+      <div class="panel-header">
+        <h2 class="panel-title">Processing <span>Pipeline</span></h2>
+        <p class="panel-sub">6-stage analysis workflow from raw audio to classification</p>
+      </div>
+      <div class="pipeline-steps">
+        <div class="pipe-step"><div class="pipe-num">01</div><div class="pipe-icon">🎙️</div><div class="pipe-name">Input Recording</div></div>
+        <div class="pipe-step"><div class="pipe-num">02</div><div class="pipe-icon">🔧</div><div class="pipe-name">Preprocessing</div></div>
+        <div class="pipe-step"><div class="pipe-num">03</div><div class="pipe-icon">📊</div><div class="pipe-name">Feature Extraction</div></div>
+        <div class="pipe-step"><div class="pipe-num">04</div><div class="pipe-icon">⚖️</div><div class="pipe-name">SMOTE Balancing</div></div>
+        <div class="pipe-step"><div class="pipe-num">05</div><div class="pipe-icon">🌲</div><div class="pipe-name">Random Forest</div></div>
+        <div class="pipe-step"><div class="pipe-num">06</div><div class="pipe-icon">✅</div><div class="pipe-name">Classification</div></div>
+      </div>
+      <div class="pipe-detail-grid">
+        <div class="pipe-detail-card">
+          <div class="pdc-label">Preprocessing Steps</div>
+          <div class="pdc-list">
+            <div class="feat-row"><div class="feat-dot"></div>Noise removal via spectral gating</div>
+            <div class="feat-row"><div class="feat-dot"></div>Amplitude normalization</div>
+            <div class="feat-row"><div class="feat-dot"></div>Cycle segmentation (windows)</div>
+          </div>
+        </div>
+        <div class="pipe-detail-card">
+          <div class="pdc-label">Feature Extraction</div>
+          <div class="pdc-list">
+            <div class="feat-row"><div class="feat-dot"></div>MFCC (13 coefficients)</div>
+            <div class="feat-row"><div class="feat-dot"></div>Spectral centroid, rolloff, contrast</div>
+            <div class="feat-row"><div class="feat-dot"></div>Temporal: RMS, ZCR, bandwidth</div>
+          </div>
+        </div>
+        <div class="pipe-detail-card">
+          <div class="pdc-label">Evaluation Metrics</div>
+          <div class="pdc-list">
+            <div class="feat-row"><div class="feat-dot" style="background:var(--accent2)"></div>Accuracy · Macro F1-Score</div>
+            <div class="feat-row"><div class="feat-dot" style="background:var(--accent2)"></div>Sensitivity · Specificity</div>
+            <div class="feat-row"><div class="feat-dot" style="background:var(--accent2)"></div>Confusion Matrix analysis</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: RESEARCH ──────────────────────────────── -->
+    <div class="tab-panel" id="tab-research">
+      <div class="panel-header">
+        <h2 class="panel-title">Literature <span>Review</span></h2>
+        <p class="panel-sub">6 papers surveyed across embedded ML, deep learning, and hybrid methods</p>
+      </div>
+
+      <!-- Desktop table -->
+      <div class="lit-wrap">
+        <table class="lit-table">
+          <thead>
+            <tr>
+              <th>Paper / Model</th>
+              <th>Dataset</th>
+              <th>Methodology</th>
+              <th>Key Insight</th>
+              <th>Performance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Embedded ML<br>Framework</td>
+              <td>ICBHI, KAUH</td>
+              <td>ExtraTrees + AutoGluon + LSTM; SMOTE + Tomek; SHAP/LIME explainability</td>
+              <td>Handcrafted features + ensemble ML achieves near-perfect accuracy</td>
+              <td><span class="metric-pill">99.97% (ICBHI)</span></td>
+            </tr>
+            <tr>
+              <td>LUNAR</td>
+              <td>HF_Lung_V1, ICBHI</td>
+              <td>Raw-signal CNN with Respiratory Periodicity Awareness Module (RPAM)</td>
+              <td>Modeling breathing periodicity significantly improves detection</td>
+              <td><span class="metric-pill">F1 ≈ 0.89</span></td>
+            </tr>
+            <tr>
+              <td>Hybrid LSTM–KAN</td>
+              <td>6-class respiratory (COPD ≈86%)</td>
+              <td>LSTM encoder → KAN classifier; focal loss + SMOTE augmentation</td>
+              <td>Class imbalance critically affects minority classes; macro-F1 is the right metric</td>
+              <td><span class="metric-pill">Macro F1: 0.703</span></td>
+            </tr>
+            <tr>
+              <td>CNN + Boosting<br>+ PSO Tuning</td>
+              <td>Clinical mel-spectrograms</td>
+              <td>Mel-spectrogram → CNN → XGBoost/AdaBoost → PSO hyperparameter tuning</td>
+              <td>Hybrid DL+ML with hyperparameter tuning excels at binary classification</td>
+              <td><span class="metric-pill">Binary: 98.14%</span></td>
+            </tr>
+            <tr>
+              <td>Kapetanidis et al.<br>Systematic Review</td>
+              <td>75 studies survey</td>
+              <td>Review of preprocessing, features, ML/DL methods, device types, evaluation</td>
+              <td>MFCCs dominate; RF/XGBoost competitive for moderate datasets; augmentation essential</td>
+              <td><span class="metric-pill">Review paper</span></td>
+            </tr>
+            <tr>
+              <td>AI Lung Sound ILD<br>Auscultation</td>
+              <td>Clinical ILD recordings</td>
+              <td>Digital stethoscope → MFCC/spectrogram → ML/DL classifiers</td>
+              <td>AI detects ILD-specific patterns; lung sounds are valid biomarkers for early disease</td>
+              <td><span class="metric-pill">Accuracy + AUC</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile cards -->
+      <div class="lit-cards" id="lit-cards">
+        <div class="lit-card">
+          <div class="lit-card-title">Embedded ML Framework · ICBHI, KAUH</div>
+          <div class="lit-card-body">ExtraTrees + AutoGluon + LSTM with SMOTE and SHAP/LIME explainability. Handcrafted features + ensemble ML achieves near-perfect performance.</div>
+          <span class="metric-pill">99.97% (ICBHI)</span>
+        </div>
+        <div class="lit-card">
+          <div class="lit-card-title">LUNAR · HF_Lung_V1, ICBHI</div>
+          <div class="lit-card-body">Raw-signal CNN with Respiratory Periodicity Awareness Module. Modeling breathing periodicity significantly improves wheeze/crackle detection.</div>
+          <span class="metric-pill">F1 ≈ 0.89</span>
+        </div>
+        <div class="lit-card">
+          <div class="lit-card-title">Hybrid LSTM–KAN · 6-class respiratory</div>
+          <div class="lit-card-body">LSTM encoder → KAN classifier with focal loss + SMOTE. Class imbalance critically affects minority classes; accuracy alone is misleading.</div>
+          <span class="metric-pill">Macro F1: 0.703</span>
+        </div>
+        <div class="lit-card">
+          <div class="lit-card-title">CNN + Boosting + PSO · Clinical mel-spectrograms</div>
+          <div class="lit-card-body">Mel-spectrogram → CNN → XGBoost/AdaBoost → PSO tuning. Hybrid DL+ML excels at binary classification when well-tuned.</div>
+          <span class="metric-pill">Binary: 98.14%</span>
+        </div>
+        <div class="lit-card">
+          <div class="lit-card-title">Kapetanidis et al. · Systematic Review (75 studies)</div>
+          <div class="lit-card-body">MFCCs and mel-spectrograms dominate. RF/XGBoost competitive for moderate datasets. Data augmentation and class-imbalance mitigation are essential.</div>
+          <span class="metric-pill">Review paper</span>
+        </div>
+        <div class="lit-card">
+          <div class="lit-card-title">AI Lung Sound ILD Auscultation · Clinical ILD</div>
+          <div class="lit-card-body">Digital stethoscope → MFCC/spectrogram → ML/DL classifiers. AI models detect ILD-specific lung sound patterns as valid early biomarkers.</div>
+          <span class="metric-pill">Accuracy + AUC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: TEAM ───────────────────────────────────── -->
+    <div class="tab-panel" id="tab-team">
+      <div class="panel-header">
+        <h2 class="panel-title">The <span>Team</span></h2>
+        <p class="panel-sub">Group 28 · Symbiosis Institute of Technology, Pune · Batch 2024–28</p>
+      </div>
+      <div class="team-grid">
+        <div class="team-card">
+          <div class="team-av">KA</div>
+          <div><div class="team-name">Karunya Agarwal</div><div class="team-id">24070126080</div></div>
+          <div class="team-role">Dataset collection, cleaning & preprocessing for model training</div>
+        </div>
+        <div class="team-card">
+          <div class="team-av">KS</div>
+          <div><div class="team-name">Karmanya Singh</div><div class="team-id">24070126079</div></div>
+          <div class="team-role">Model training, hyperparameter tuning & performance evaluation</div>
+        </div>
+        <div class="team-card">
+          <div class="team-av">IB</div>
+          <div><div class="team-name">Ishan Bhise</div><div class="team-id">24070126229</div></div>
+          <div class="team-role">Random Forest testing on unseen data and metrics evaluation</div>
+        </div>
+        <div class="team-card">
+          <div class="team-av">RS</div>
+          <div><div class="team-name">Rohan Salunkhe</div><div class="team-id">24070126156</div></div>
+          <div class="team-role">UI design & integration of trained model with frontend</div>
+        </div>
+      </div>
+      <div class="guide-bar">
+        <div style="font-size:13px;color:var(--dim);">Guide: <strong style="color:var(--text)">Ms. Shruti Sunnad</strong> · Department of Artificial Intelligence & Machine Learning</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--dimmer);">Presented 14-02-2026</div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="bn-item active" data-tab="overview" onclick="switchTab('overview')">
+      <span class="bn-icon">🏠</span><span>Home</span>
+    </button>
+    <button class="bn-item" data-tab="classify" onclick="switchTab('classify')">
+      <span class="bn-icon">🎙️</span><span>Classify</span>
+    </button>
+    <button class="bn-item" data-tab="pipeline" onclick="switchTab('pipeline')">
+      <span class="bn-icon">⚙️</span><span>Pipeline</span>
+    </button>
+    <button class="bn-item" data-tab="research" onclick="switchTab('research')">
+      <span class="bn-icon">📄</span><span>Research</span>
+    </button>
+    <button class="bn-item" data-tab="team" onclick="switchTab('team')">
+      <span class="bn-icon">👥</span><span>Team</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+/* ── TAB SWITCHING ───────────────────────────────────── */
+const TAB_TITLES = {
+  overview: 'Overview',
+  classify: 'Classify Sound',
+  pipeline: 'Pipeline',
+  research: 'Literature Review',
+  team: 'Team'
+};
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .bn-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelectorAll('[data-tab="' + id + '"]').forEach(el => el.classList.add('active'));
+  document.getElementById('topbar-title').textContent = TAB_TITLES[id] || id;
+  closeSidebar();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── SIDEBAR MOBILE ─────────────────────────────────── */
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('show', open);
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+/* ── WAVEFORM CANVAS ────────────────────────────────── */
+const canvas = document.getElementById('hero-wave');
+const ctx = canvas.getContext('2d');
+let t = 0;
+
+function resizeWave() {
+  const parent = canvas.parentElement;
+  const w = Math.min(280, parent.offsetWidth - 40);
+  canvas.width = w; canvas.height = 54;
+  canvas.style.width = w + 'px';
+}
+resizeWave();
+window.addEventListener('resize', resizeWave);
+
+function drawWave() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,212,170,0.75)';
+  ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(0,212,170,0.5)';
+  ctx.beginPath();
+  for (let x = 0; x < W; x++) {
+    const r = x / W;
+    const y = H/2 + Math.sin(r*14+t)*9 + Math.sin(r*28+t*1.3)*4 + Math.sin(r*7+t*0.7)*7 + Math.sin(r*50+t*2)*2.5;
+    x ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,153,255,0.35)'; ctx.shadowColor = 'rgba(0,153,255,0.3)';
+  ctx.beginPath();
+  for (let x = 0; x < W; x++) {
+    const r = x / W;
+    const y = H/2 + Math.sin(r*10+t*1.2+1)*6 + Math.sin(r*22+t*0.8+2)*3.5;
+    x ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  }
+  ctx.stroke();
+  t += 0.04;
+  requestAnimationFrame(drawWave);
+}
+drawWave();
+
+/* ── FILE UPLOAD ────────────────────────────────────── */
+let currentFile = null; // Store the file globally so drag-and-drop works
+
+function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('dragging'); }
+function handleDragLeave() { document.getElementById('upload-zone').classList.remove('dragging'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('dragging');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    currentFile = f;
+    processFile(f);
+  }
+}
+function handleFileSelect(e) { 
+  const f = e.target.files[0]; 
+  if (f) {
+    currentFile = f;
+    processFile(f); 
+  }
+}
+
+function processFile(file) {
+  const el = document.getElementById('upload-filename');
+  el.textContent = '📎 ' + file.name; el.style.display = 'block';
+  const btn = document.getElementById('classify-btn');
+  btn.disabled = false;
+}
+
+/* ── REAL API CLASSIFICATION ──────────────────────── */
+async function runClassification() {
+  if (!currentFile) {
+      alert("Please upload an audio file first.");
+      return;
+  }
+
+  const btn = document.getElementById('classify-btn');
+  const btnText = document.getElementById('btn-text');
+  const btnIcon = document.getElementById('btn-icon');
+  
+  // Set UI to loading state
+  btn.disabled = true; 
+  btnIcon.textContent = '⏳'; 
+  btnText.textContent = 'Analyzing Audio...';
+
+  // Prepare the file to be sent to Python
+  const formData = new FormData();
+  formData.append('file', currentFile);
+
+  try {
+    // Send file to Flask API
+    const response = await fetch('http://127.0.0.1:5000/predict', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('Network response was not ok');
+    
+    // Get the JSON answer back from Python
+    const data = await response.json();
+    
+    if (data.error) throw new Error(data.error);
+
+    const isNormal = data.prediction === 'Normal';
+    const nProb = data.normal_confidence;
+    const aProb = data.abnormal_confidence;
+
+    // Update the progress bars
+    document.getElementById('fill-normal').style.width = nProb + '%';
+    document.getElementById('fill-abnormal').style.width = aProb + '%';
+    document.getElementById('p-normal').textContent = nProb.toFixed(1) + '%';
+    document.getElementById('p-abnormal').textContent = aProb.toFixed(1) + '%';
+
+    // Update the text labels
+    const lbl = document.getElementById('result-label');
+    const dsc = document.getElementById('result-desc');
+    const sts = document.getElementById('result-status');
+
+    if (isNormal) {
+      lbl.textContent = '✓ Normal'; lbl.className = 'classification-label';
+      dsc.textContent = 'No abnormal respiratory patterns detected. Confidence: ' + nProb.toFixed(1) + '%';
+      sts.textContent = 'Normal Sound'; sts.className = 'mono-tag green';
+    } else {
+      lbl.textContent = '⚠ Abnormal'; lbl.className = 'classification-label abnormal';
+      dsc.textContent = 'Abnormal pattern detected (wheeze/crackle). Confidence: ' + aProb.toFixed(1) + '%';
+      sts.textContent = 'Abnormal Sound'; sts.className = 'mono-tag red';
+    }
+
+    document.getElementById('feature-list').style.display = 'flex';
+    
+  } catch (error) {
+    console.error('Error during classification:', error);
+    alert('Failed to classify audio. Make sure your Python Flask server is running!');
+  } finally {
+    // Reset button
+    btnIcon.textContent = '⚡'; 
+    btnText.textContent = 'Classify Again'; 
+    btn.disabled = false;
+  }
+}
+
+/* ── SCROLL REVEAL ──────────────────────────────────── */
+const reveal = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.opacity = '1';
+      e.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.08 });
+
+document.querySelectorAll('.stat-card, .pipe-step, .team-card, .pipe-detail-card, .lit-card').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(16px)';
+  el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+  reveal.observe(el);
+});
+</script>
+</script>
+</body>
+</html>
