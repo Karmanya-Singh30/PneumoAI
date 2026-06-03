@@ -37,5 +37,13 @@ The system processes respiratory audio recordings, extracts acoustic features, a
 | Accuracy | 95.94% |
 | Macro F1 Score | 82.05% |
 
+## Screenshots
+
+### Home Page
+![Home Page](screenshots/ui.png)
+
+### Probability breakdown
+![Upload Page](screenshots/probability_breakdown.png)
+
 The model achieved high sensitivity for detecting abnormal respiratory conditions while maintaining strong overall classification performance.
 
