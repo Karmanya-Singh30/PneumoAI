@@ -40,10 +40,10 @@ The system processes respiratory audio recordings, extracts acoustic features, a
 ## Screenshots
 
 ### Home Page
-![Home Page](screenshots/ui.png)
+![ui](screenshot/ui.png)
 
 ### Probability breakdown
-![Upload Page](screenshots/probability_breakdown.png)
+![probability_breakdown](screenshot/probability_breakdown.png)
 
 The model achieved high sensitivity for detecting abnormal respiratory conditions while maintaining strong overall classification performance.
 
